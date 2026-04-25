@@ -1,8 +1,8 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Claude Code IDE</title>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Claude Code IDE + AI</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{display:flex;height:100vh;font-family:system-ui,sans-serif;background:#1e1e1e;color:#ccc;font-size:13px;overflow:hidden}
-#sb{width:300px;background:#252526;border-right:1px solid #333;display:flex;flex-direction:column;flex-shrink:0}
+#sb{width:240px;background:#252526;border-right:1px solid #333;display:flex;flex-direction:column;flex-shrink:0}
 #srch{padding:8px;border-bottom:1px solid #333}
 #srch input{width:100%;padding:6px 8px;background:#1e1e1e;color:#ccc;border:1px solid #3c3c3c;border-radius:3px;font:inherit;outline:none}
 #srch input:focus{border-color:#007acc}
@@ -22,6 +22,23 @@ button:hover{background:#1177bb}
 button:disabled{opacity:.4;cursor:not-allowed}
 button.gh{background:#333}button.gh:hover{background:#555}
 .empty{padding:20px;text-align:center;color:#888}
+#ai{width:380px;background:#252526;border-left:1px solid #333;display:flex;flex-direction:column;flex-shrink:0}
+#aih{height:36px;background:#2d2d30;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 12px;color:#fff;font-weight:500;justify-content:space-between}
+#mods{background:#1e1e1e;color:#ccc;border:1px solid #3c3c3c;border-radius:3px;font:inherit;font-size:11px;padding:2px 4px;outline:none}
+#msgs{flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:8px}
+.msg{padding:8px 10px;border-radius:6px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word;font-size:12.5px}
+.msg.u{background:#264f78;color:#fff;align-self:flex-end;max-width:90%}
+.msg.a{background:#2d2d30;color:#ddd;align-self:flex-start;max-width:95%}
+.msg.s{background:#3a2a1f;color:#f48771;align-self:stretch;font-size:11px}
+.msg code{background:#1e1e1e;padding:1px 4px;border-radius:3px;font-family:Consolas,monospace;font-size:11.5px}
+.msg pre{background:#1e1e1e;padding:8px;border-radius:4px;overflow:auto;font-family:Consolas,monospace;font-size:11.5px;margin:4px 0}
+#ip{padding:8px;border-top:1px solid #333;display:flex;flex-direction:column;gap:6px}
+#ctx{display:flex;align-items:center;gap:6px;font-size:11px;color:#888}
+#ctx input{margin:0}
+#ip textarea{background:#1e1e1e;color:#ccc;border:1px solid #3c3c3c;border-radius:3px;padding:6px 8px;font:inherit;font-size:12px;resize:none;outline:none;height:60px}
+#ip textarea:focus{border-color:#007acc}
+#sendrow{display:flex;justify-content:space-between;align-items:center}
+#sendrow button{margin:0}
 </style></head><body>
 <div id="sb">
 <div id="srch"><input placeholder="Rechercher un fichier..." id="q"></div>
@@ -29,59 +46,39 @@ button.gh{background:#333}button.gh:hover{background:#555}
 </div>
 <div id="m">
 <div id="tb">
-<span id="tt">Selectionne un fichier dans la sidebar</span>
+<span id="tt">Selectionne un fichier</span>
 <div><span id="st"></span><button onclick="rs()">Reset</button><button onclick="dl()">Telecharger</button><button class="gh" onclick="window.open('https://github.com/yasasbanukaofficial/claude-code','_blank')">GitHub</button></div>
 </div>
 <div id="ed"><textarea id="ta" spellcheck="false" placeholder="Charge un fichier depuis la sidebar"></textarea></div>
 </div>
+<div id="ai">
+<div id="aih"><span>Chat IA</span>
+<select id="mods"><option value="openai">openai (GPT)</option><option value="mistral">mistral</option><option value="llama">llama</option><option value="claude">claude</option><option value="qwen-coder">qwen-coder</option></select>
+</div>
+<div id="msgs"><div class="msg s">Bienvenue ! Pose une question, demande une explication ou une modification du fichier ouvert. L'IA est gratuite (pollinations.ai), pas de cle requise.</div></div>
+<div id="ip">
+<div id="ctx"><label><input type="checkbox" id="incf" checked> Inclure le fichier ouvert comme contexte</label></div>
+<textarea id="qa" placeholder="Demande quelque chose a l'IA... (Ctrl+Entree pour envoyer)"></textarea>
+<div id="sendrow"><button onclick="clr()" class="gh" style="background:#444">Effacer</button><button id="sb2" onclick="ask()">Envoyer</button></div>
+</div>
+</div>
 <script>
 const R='yasasbanukaofficial/claude-code';
-const tr=document.getElementById('tr'),ta=document.getElementById('ta'),tt=document.getElementById('tt'),st=document.getElementById('st'),q=document.getElementById('q');
-let fs=[],cur=null,og={};
-async function init(){
-try{
-const r=await fetch('https://api.github.com/repos/'+R+'/git/trees/main?recursive=1');
-if(!r.ok)throw new Error('GitHub API '+r.status+' (rate limit?)');
-const j=await r.json();
-fs=j.tree.filter(n=>n.type==='blob').map(n=>n.path).sort();
-rd();
-}catch(e){tr.innerHTML='<div class="empty" style="color:#f48771">Erreur: '+e.message+'</div>'}
-}
-function rd(){
-const f=q.value.toLowerCase();
-const sh=fs.filter(p=>!f||p.toLowerCase().includes(f));
-tr.innerHTML='';
-if(!sh.length){tr.innerHTML='<div class="empty">Aucun resultat</div>';return}
-sh.forEach(p=>{
-const d=document.createElement('div');
-d.className='f'+(localStorage.getItem('cc:'+p)!==null?' mod':'')+(p===cur?' act':'');
-d.textContent=p;d.title=p;d.onclick=()=>op(p);
-tr.appendChild(d);
-});
-const m=fs.filter(p=>localStorage.getItem('cc:'+p)!==null).length;
-st.textContent=fs.length+' fichiers'+(m?' | '+m+' modif.':'');
-}
-async function op(p){
-cur=p;tt.textContent=p;
-const k='cc:'+p,sv=localStorage.getItem(k);
-if(sv!==null){ta.value=sv;rd();return}
-ta.value='Chargement...';
-try{
-const r=await fetch('https://cdn.jsdelivr.net/gh/'+R+'@main/'+p);
-const t=await r.text();og[p]=t;ta.value=t;
-}catch(e){ta.value='Erreur de chargement: '+e.message}
-rd();
-}
-ta.addEventListener('input',()=>{
-if(!cur)return;
-const k='cc:'+cur;
-if(og[cur]!==undefined&&ta.value===og[cur]){localStorage.removeItem(k)}
-else{try{localStorage.setItem(k,ta.value)}catch(e){alert('Quota localStorage atteint')}}
-rd();
-});
+const tr=document.getElementById('tr'),ta=document.getElementById('ta'),tt=document.getElementById('tt'),st=document.getElementById('st'),q=document.getElementById('q'),msgs=document.getElementById('msgs'),qa=document.getElementById('qa'),sb2=document.getElementById('sb2'),mods=document.getElementById('mods'),incf=document.getElementById('incf');
+let fs=[],cur=null,og={},hist=[];
+async function init(){try{const r=await fetch('https://api.github.com/repos/'+R+'/git/trees/main?recursive=1');if(!r.ok)throw new Error('GitHub API '+r.status+' (rate limit?)');const j=await r.json();fs=j.tree.filter(n=>n.type==='blob').map(n=>n.path).sort();rd();}catch(e){tr.innerHTML='<div class="empty" style="color:#f48771">Erreur: '+e.message+'</div>'}}
+function rd(){const f=q.value.toLowerCase();const sh=fs.filter(p=>!f||p.toLowerCase().includes(f));tr.innerHTML='';if(!sh.length){tr.innerHTML='<div class="empty">Aucun resultat</div>';return}sh.forEach(p=>{const d=document.createElement('div');d.className='f'+(localStorage.getItem('cc:'+p)!==null?' mod':'')+(p===cur?' act':'');d.textContent=p;d.title=p;d.onclick=()=>op(p);tr.appendChild(d);});const m=fs.filter(p=>localStorage.getItem('cc:'+p)!==null).length;st.textContent=fs.length+' fichiers'+(m?' | '+m+' modif.':'');}
+async function op(p){cur=p;tt.textContent=p;const k='cc:'+p,sv=localStorage.getItem(k);if(sv!==null){ta.value=sv;rd();return}ta.value='Chargement...';try{const r=await fetch('https://cdn.jsdelivr.net/gh/'+R+'@main/'+p);const t=await r.text();og[p]=t;ta.value=t;}catch(e){ta.value='Erreur de chargement: '+e.message}rd();}
+ta.addEventListener('input',()=>{if(!cur)return;const k='cc:'+cur;if(og[cur]!==undefined&&ta.value===og[cur]){localStorage.removeItem(k)}else{try{localStorage.setItem(k,ta.value)}catch(e){alert('Quota localStorage atteint')}}rd();});
 q.addEventListener('input',rd);
 function rs(){if(!cur)return;if(!confirm('Annuler les modifs sur '+cur+' ?'))return;localStorage.removeItem('cc:'+cur);if(og[cur]!==undefined)ta.value=og[cur];rd();}
 function dl(){if(!cur)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ta.value]));a.download=cur.split('/').pop();a.click();}
-window.rs=rs;window.dl=dl;
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function fmt(s){s=esc(s);s=s.replace(/```([\s\S]*?)```/g,(_,c)=>'<pre>'+c+'</pre>');s=s.replace(/`([^`\n]+)`/g,'<code>$1</code>');return s;}
+function add(role,txt){const d=document.createElement('div');d.className='msg '+(role==='user'?'u':role==='assistant'?'a':'s');d.innerHTML=fmt(txt);msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;return d;}
+function clr(){msgs.innerHTML='<div class="msg s">Conversation effacee.</div>';hist=[];}
+async function ask(){const txt=qa.value.trim();if(!txt)return;qa.value='';sb2.disabled=true;let prompt=txt;if(incf.checked&&cur&&ta.value){prompt='Fichier ouvert: '+cur+'\n\n```\n'+ta.value.slice(0,8000)+(ta.value.length>8000?'\n...(tronque)':'')+'\n```\n\nQuestion: '+txt;}hist.push({role:'user',content:prompt});add('user',txt);const ph=add('assistant','...');try{const m=mods.value;const r=await fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:m,messages:[{role:'system',content:'Tu es un assistant de code utile. Reponds en francais. Sois concis.'}].concat(hist),private:true})});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();const a=j.choices&&j.choices[0]&&j.choices[0].message?j.choices[0].message.content:JSON.stringify(j);hist.push({role:'assistant',content:a});ph.innerHTML=fmt(a);msgs.scrollTop=msgs.scrollHeight;}catch(e){ph.className='msg s';ph.textContent='Erreur IA: '+e.message;hist.pop();}sb2.disabled=false;qa.focus();}
+qa.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();ask();}});
+window.rs=rs;window.dl=dl;window.ask=ask;window.clr=clr;
 init();
 </script></body></html>
