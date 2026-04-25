@@ -1,0 +1,87 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Claude Code IDE</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{display:flex;height:100vh;font-family:system-ui,sans-serif;background:#1e1e1e;color:#ccc;font-size:13px;overflow:hidden}
+#sb{width:300px;background:#252526;border-right:1px solid #333;display:flex;flex-direction:column;flex-shrink:0}
+#srch{padding:8px;border-bottom:1px solid #333}
+#srch input{width:100%;padding:6px 8px;background:#1e1e1e;color:#ccc;border:1px solid #3c3c3c;border-radius:3px;font:inherit;outline:none}
+#srch input:focus{border-color:#007acc}
+#tr{flex:1;overflow:auto;padding:4px 0}
+.f{padding:3px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:18px}
+.f:hover{background:#2a2d2e}
+.f.act{background:#37373d;color:#fff}
+.f.mod::after{content:" \25CF";color:#0098ff;margin-left:4px}
+#m{flex:1;display:flex;flex-direction:column;min-width:0}
+#tb{height:36px;background:#2d2d30;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 12px;justify-content:space-between;flex-shrink:0}
+#tt{color:#fff;font-weight:500;overflow:hidden;text-overflow:ellipsis}
+#st{font-size:11px;color:#888;margin-right:8px}
+#ed{flex:1;background:#1e1e1e;overflow:hidden}
+#ed textarea{width:100%;height:100%;background:transparent;color:#d4d4d4;border:0;font-family:Consolas,Menlo,monospace;font-size:13px;line-height:1.5;padding:12px;outline:none;resize:none;tab-size:2;white-space:pre;overflow:auto}
+button{background:#0e639c;color:#fff;border:0;padding:5px 12px;border-radius:3px;cursor:pointer;margin-left:6px;font:inherit;font-size:12px}
+button:hover{background:#1177bb}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.gh{background:#333}button.gh:hover{background:#555}
+.empty{padding:20px;text-align:center;color:#888}
+</style></head><body>
+<div id="sb">
+<div id="srch"><input placeholder="Rechercher un fichier..." id="q"></div>
+<div id="tr"><div class="empty">Chargement du repo...</div></div>
+</div>
+<div id="m">
+<div id="tb">
+<span id="tt">Selectionne un fichier dans la sidebar</span>
+<div><span id="st"></span><button onclick="rs()">Reset</button><button onclick="dl()">Telecharger</button><button class="gh" onclick="window.open('https://github.com/yasasbanukaofficial/claude-code','_blank')">GitHub</button></div>
+</div>
+<div id="ed"><textarea id="ta" spellcheck="false" placeholder="Charge un fichier depuis la sidebar"></textarea></div>
+</div>
+<script>
+const R='yasasbanukaofficial/claude-code';
+const tr=document.getElementById('tr'),ta=document.getElementById('ta'),tt=document.getElementById('tt'),st=document.getElementById('st'),q=document.getElementById('q');
+let fs=[],cur=null,og={};
+async function init(){
+try{
+const r=await fetch('https://api.github.com/repos/'+R+'/git/trees/main?recursive=1');
+if(!r.ok)throw new Error('GitHub API '+r.status+' (rate limit?)');
+const j=await r.json();
+fs=j.tree.filter(n=>n.type==='blob').map(n=>n.path).sort();
+rd();
+}catch(e){tr.innerHTML='<div class="empty" style="color:#f48771">Erreur: '+e.message+'</div>'}
+}
+function rd(){
+const f=q.value.toLowerCase();
+const sh=fs.filter(p=>!f||p.toLowerCase().includes(f));
+tr.innerHTML='';
+if(!sh.length){tr.innerHTML='<div class="empty">Aucun resultat</div>';return}
+sh.forEach(p=>{
+const d=document.createElement('div');
+d.className='f'+(localStorage.getItem('cc:'+p)!==null?' mod':'')+(p===cur?' act':'');
+d.textContent=p;d.title=p;d.onclick=()=>op(p);
+tr.appendChild(d);
+});
+const m=fs.filter(p=>localStorage.getItem('cc:'+p)!==null).length;
+st.textContent=fs.length+' fichiers'+(m?' | '+m+' modif.':'');
+}
+async function op(p){
+cur=p;tt.textContent=p;
+const k='cc:'+p,sv=localStorage.getItem(k);
+if(sv!==null){ta.value=sv;rd();return}
+ta.value='Chargement...';
+try{
+const r=await fetch('https://cdn.jsdelivr.net/gh/'+R+'@main/'+p);
+const t=await r.text();og[p]=t;ta.value=t;
+}catch(e){ta.value='Erreur de chargement: '+e.message}
+rd();
+}
+ta.addEventListener('input',()=>{
+if(!cur)return;
+const k='cc:'+cur;
+if(og[cur]!==undefined&&ta.value===og[cur]){localStorage.removeItem(k)}
+else{try{localStorage.setItem(k,ta.value)}catch(e){alert('Quota localStorage atteint')}}
+rd();
+});
+q.addEventListener('input',rd);
+function rs(){if(!cur)return;if(!confirm('Annuler les modifs sur '+cur+' ?'))return;localStorage.removeItem('cc:'+cur);if(og[cur]!==undefined)ta.value=og[cur];rd();}
+function dl(){if(!cur)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ta.value]));a.download=cur.split('/').pop();a.click();}
+window.rs=rs;window.dl=dl;
+init();
+</script></body></html>
